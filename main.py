@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from scapy.all import rdpcap, sniff
 from parsers.network import parse_network
+from parsers.transport import parse_transport
 import argparse
 import sys
 
@@ -19,10 +20,13 @@ def process_packet(packet):
         if not net_info:
             return
 
+        trans_info = parse_transport(packet)
+
         event = {
             "packet_id": pc,
             "timestamp": ts,
-            "network": net_info
+            "network": net_info,
+            "transport": trans_info
         }
 
         line = json.dumps(event)
