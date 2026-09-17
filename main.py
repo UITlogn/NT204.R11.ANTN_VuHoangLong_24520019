@@ -2,6 +2,9 @@ import json
 from datetime import datetime
 from scapy.all import rdpcap, sniff
 from parsers.network import parse_network
+import argparse
+import sys
+
 
 pc = 0
 
@@ -34,8 +37,22 @@ def process_packet(packet):
         print(json.dumps(error_event) + "\n")
 
 
-# packets = rdpcap("TEST/test01.pcap")
-# for pkt in packets:
-#     process_packet(pkt)
+parser = argparse.ArgumentParser(description="Packet Capture & Parser for IDS")
+parser.add_argument("--interface", type=str)
+parser.add_argument("--pcap", type=str)
+parser.add_argument("--output", type=str, default="output.jsonl")
+args = parser.parse_args()
 
-sniff(iface="Wi-Fi", prn=process_packet, store=False)
+if not args.interface and not args.pcap:
+    parser.error("Add --interface or --pcap")
+    exit(0)
+
+if args.output:
+    sys.stdout = open(args.output, "a", encoding="utf-8", buffering=1)
+
+if args.pcap:
+    packets = rdpcap(args.pcap)
+    for pkt in packets:
+        process_packet(pkt)
+elif args.interface:
+    sniff(iface=args.interface, prn=process_packet, store=False)
