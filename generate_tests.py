@@ -52,12 +52,20 @@ dns_query_pkt = [
 wrpcap("TEST/test_dns_query.pcap", dns_query_pkt)
 
 # 8. DNS Response (chứa ít nhất 1 answer)
+raw_dns_resp = DNS(
+    id=0x1234,
+    qr=1,
+    aa=1,
+    rd=1,
+    ra=1,
+    qdcount=1,
+    ancount=1,
+    qd=DNSQR(qname="uit.edu.vn", qtype="A"),
+    an=DNSRR(rrname="uit.edu.vn", type="A", rclass="IN", ttl=300, rdata="118.69.123.10")
+)
+
 dns_res_pkt = [
-    IP(src="8.8.8.8", dst="192.168.1.10") / UDP(sport=53, dport=53535) / DNS(
-        id=0x1234, qr=1,
-        qd=DNSQR(qname="uit.edu.vn", qtype="A"),
-        an=DNSRR(rrname="uit.edu.vn", type="A", rdata="118.69.123.10", ttl=300)
-    )
+    IP(src="8.8.8.8", dst="192.168.1.10") / UDP(sport=53, dport=53535) / raw_dns_resp
 ]
 wrpcap("TEST/test_dns_response.pcap", dns_res_pkt)
 
@@ -81,5 +89,3 @@ pkts_malformed = [
     IP(src="10.0.0.1", dst="10.0.0.2", proto=99) / Raw(load=b"\x00\x01\x02\x03\x04")  # Protocol lạ
 ]
 wrpcap("TEST/test_malformed.pcap", pkts_malformed)
-
-print("Đã sinh xong toàn bộ file PCAP kiểm thử vào thư mục TEST/")

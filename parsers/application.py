@@ -37,7 +37,6 @@ def parse_dns(packet):
         "answers": []
     }
 
-    # Bóc tách Query
     if dns.qdcount > 0 and dns.qd:
         curr = dns.qd
         for _ in range(dns.qdcount):
@@ -48,25 +47,29 @@ def parse_dns(packet):
                 "qname": qname,
                 "qtype": int(curr.qtype)
             })
-            curr = curr.payload if hasattr(curr, "payload") else None
+            curr = curr.payload if hasattr(curr, "payload") and curr.payload and curr.payload.name != "NoPayload" else None
 
-    if dns.ancount > 0 and dns.an:
-        curr = dns.an
-        for _ in range(dns.ancount):
-            if not curr:
+    if dns.ancount > 0:
+        for i in range(1, int(dns.ancount) + 1):
+            answer = packet.getlayer(DNSRR, i)
+            if answer is None:
                 break
-            if isinstance(curr, DNSRR):
-                rdata = curr.rdata
-                if isinstance(rdata, bytes):
-                    rdata = rdata.decode("utf-8", errors="ignore")
-                rrname = curr.rrname.decode("utf-8", errors="ignore").rstrip(".") if hasattr(curr, "rrname") and curr.rrname else ""
-                data["answers"].append({
-                    "rrname": rrname,
-                    "type": int(curr.type),
-                    "rdata": str(rdata),
-                    "ttl": int(curr.ttl)
-                })
-            curr = curr.payload if hasattr(curr, "payload") else None
+            rdata = answer.rdata
+            if isinstance(rdata, bytes):
+                rdata = rdata.decode("utf-8", errors="ignore")
+            else:
+                rdata = str(rdata)
+            rrname = answer.rrname
+            if isinstance(rrname, bytes):
+                rrname = rrname.decode("utf-8", errors="ignore")
+            else:
+                rrname = str(rrname)
+            data["answers"].append({
+                "rrname": rrname.rstrip("."),
+                "type": int(answer.type),
+                "rdata": rdata.rstrip("."),
+                "ttl": int(answer.ttl)
+            })
 
     return data
 
@@ -114,18 +117,24 @@ def parse_smtp(payload_bytes):
         text = payload_bytes.decode("utf-8", errors="ignore").strip()
         first_line = text.split("\r\n")[0]
 
-        # Kiểm tra Response: 3 chữ số đầu tiên
         match_resp = re.match(r"^(\d{3})([ -])(.*)", first_line)
         if match_resp:
             data["type"] = "response"
             data["status_code"] = int(match_resp.group(1))
             data["message"] = match_resp.group(3).strip()
         else:
-            # SMTP Command
             data["type"] = "command"
-            tokens = first_line.split(" ", 1)
-            data["command"] = tokens[0].upper()
-            data["arguments"] = tokens[1].strip() if len(tokens) > 1 else ""
+            upper_line = first_line.upper()
+            if upper_line.startswith("MAIL FROM:"):
+                data["command"] = "MAIL FROM"
+                data["arguments"] = first_line[10:].strip()
+            elif upper_line.startswith("RCPT TO:"):
+                data["command"] = "RCPT TO"
+                data["arguments"] = first_line[8:].strip()
+            else:
+                tokens = first_line.split(" ", 1)
+                data["command"] = tokens[0].upper()
+                data["arguments"] = tokens[1].strip() if len(tokens) > 1 else ""
     except Exception:
         data["error"] = "malformed_smtp"
 
