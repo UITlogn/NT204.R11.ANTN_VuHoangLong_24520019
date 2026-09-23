@@ -1,0 +1,1 @@
+{"packet_id": 1, "timestamp": 1790140781.82029, "network": {"src_ip": "192.168.1.10", "dst_ip": "192.168.1.20", "version": 4, "ttl": 64, "proto": 6}, "transport": {"protocol": "TCP", "src_port": 12345, "dst_port": 8080, "seq": 1001, "ack": 2001, "flags": ["ACK", "PSH"]}, "application_protocol": "UNKNOWN", "application": null}
