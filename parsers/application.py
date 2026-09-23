@@ -3,20 +3,28 @@ from scapy.layers.dns import DNS, DNSRR
 from scapy.packet import Raw
 
 HTTP_METHODS = [b"GET", b"POST", b"PUT", b"DELETE", b"HEAD", b"OPTIONS", b"PATCH"]
+SMTP_COMMANDS = [b"HELO", b"EHLO", b"MAIL FROM:", b"RCPT TO:", b"DATA", b"QUIT", b"RSET", b"STARTTLS", b"AUTH"]
 
 def detect_protocol(packet, payload_bytes):
     if packet.haslayer(DNS):
         return "DNS"
 
     if payload_bytes:
-        first_line = payload_bytes.split(b"\r\n")[0]
-        # Payload-based detection cho HTTP Request
+        first_line = payload_bytes.split(b"\r\n")[0].strip()
+
         for m in HTTP_METHODS:
             if first_line.startswith(m + b" "):
                 return "HTTP"
-        # Payload-based detection cho HTTP Response
         if first_line.startswith(b"HTTP/1."):
             return "HTTP"
+
+        first_line_upper = first_line.upper()
+        for cmd in SMTP_COMMANDS:
+            if first_line_upper.startswith(cmd):
+                return "SMTP"
+
+        if re.match(rb"^\d{3}[ -]", first_line):
+            return "SMTP"
 
     return "UNKNOWN"
 
@@ -29,31 +37,36 @@ def parse_dns(packet):
         "answers": []
     }
 
+    # Bóc tách Query
     if dns.qdcount > 0 and dns.qd:
-        curr_qd = dns.qd
-        while curr_qd:
-            qname = curr_qd.qname.decode("utf-8", errors="ignore").rstrip(".") if hasattr(curr_qd, "qname") else ""
+        curr = dns.qd
+        for _ in range(dns.qdcount):
+            if not curr:
+                break
+            qname = curr.qname.decode("utf-8", errors="ignore").rstrip(".") if hasattr(curr, "qname") and curr.qname else ""
             data["queries"].append({
                 "qname": qname,
-                "qtype": int(curr_qd.qtype)
+                "qtype": int(curr.qtype)
             })
-            curr_qd = curr_qd.payload if hasattr(curr_qd, "payload") and isinstance(curr_qd.payload, type(dns.qd)) else None
+            curr = curr.payload if hasattr(curr, "payload") else None
 
     if dns.ancount > 0 and dns.an:
-        curr_an = dns.an
-        while curr_an:
-            if isinstance(curr_an, DNSRR):
-                rdata = curr_an.rdata
+        curr = dns.an
+        for _ in range(dns.ancount):
+            if not curr:
+                break
+            if isinstance(curr, DNSRR):
+                rdata = curr.rdata
                 if isinstance(rdata, bytes):
                     rdata = rdata.decode("utf-8", errors="ignore")
-                rrname = curr_an.rrname.decode("utf-8", errors="ignore").rstrip(".") if hasattr(curr_an, "rrname") else ""
+                rrname = curr.rrname.decode("utf-8", errors="ignore").rstrip(".") if hasattr(curr, "rrname") and curr.rrname else ""
                 data["answers"].append({
                     "rrname": rrname,
-                    "type": int(curr_an.type),
+                    "type": int(curr.type),
                     "rdata": str(rdata),
-                    "ttl": int(curr_an.ttl)
+                    "ttl": int(curr.ttl)
                 })
-            curr_an = curr_an.payload if hasattr(curr_an, "payload") and isinstance(curr_an.payload, DNSRR) else None
+            curr = curr.payload if hasattr(curr, "payload") else None
 
     return data
 
@@ -68,14 +81,12 @@ def parse_http(payload_bytes):
         start_line = lines[0]
 
         if start_line.startswith("HTTP/1."):
-            # HTTP Response
             tokens = start_line.split(" ", 2)
             data["type"] = "response"
             data["version"] = tokens[0]
             data["status_code"] = int(tokens[1]) if len(tokens) > 1 and tokens[1].isdigit() else tokens[1]
             data["status_message"] = tokens[2] if len(tokens) > 2 else ""
         else:
-            # HTTP Request
             tokens = start_line.split(" ", 2)
             data["type"] = "request"
             data["method"] = tokens[0]
@@ -97,6 +108,29 @@ def parse_http(payload_bytes):
 
     return data
 
+def parse_smtp(payload_bytes):
+    data = {}
+    try:
+        text = payload_bytes.decode("utf-8", errors="ignore").strip()
+        first_line = text.split("\r\n")[0]
+
+        # Kiểm tra Response: 3 chữ số đầu tiên
+        match_resp = re.match(r"^(\d{3})([ -])(.*)", first_line)
+        if match_resp:
+            data["type"] = "response"
+            data["status_code"] = int(match_resp.group(1))
+            data["message"] = match_resp.group(3).strip()
+        else:
+            # SMTP Command
+            data["type"] = "command"
+            tokens = first_line.split(" ", 1)
+            data["command"] = tokens[0].upper()
+            data["arguments"] = tokens[1].strip() if len(tokens) > 1 else ""
+    except Exception:
+        data["error"] = "malformed_smtp"
+
+    return data
+
 def parse_application(packet):
     payload_bytes = bytes(packet[Raw].load) if packet.haslayer(Raw) else b""
     proto = detect_protocol(packet, payload_bytes)
@@ -105,5 +139,7 @@ def parse_application(packet):
         return proto, parse_dns(packet)
     if proto == "HTTP":
         return proto, parse_http(payload_bytes)
+    if proto == "SMTP":
+        return proto, parse_smtp(payload_bytes)
 
     return "UNKNOWN", None
