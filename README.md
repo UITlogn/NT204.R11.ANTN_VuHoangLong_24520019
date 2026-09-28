@@ -1,0 +1,7 @@
+- Công cụ AI đã sử dụng: Gemini 3.8 Flash
+- Mục đích sử dụng: viết script gen các file pcap để test và script để gọi chạy nhanh toàn bộ các test
+- Phần mã nguồn có sử dụng AI:
+    - generate_tests.py
+    - TEST/.pcap
+    - run_all.py
+    - update_test.py (fix một case pcap lỗi)
