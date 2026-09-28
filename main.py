@@ -16,10 +16,14 @@ def process_packet(packet):
 
     try:
         ts = float(packet.time) if hasattr(packet, "time") else datetime.now().timestamp()
+        wl = getattr(packet, "wirelen", None)
+        if wl is not None and wl > len(packet):
+            raise ValueError(f"Captured {len(packet)} of {wl} bytes")
+
         net_info = parse_network(packet)
 
         if not net_info:
-            return
+            raise ValueError("Packet does not contain an IPv4 header")
 
         trans_info = parse_transport(packet)
         app_proto, app_info = parse_application(packet)
@@ -42,7 +46,7 @@ def process_packet(packet):
             "error": "malformed_packet",
             "details": str(e)
         }
-        print(json.dumps(error_event) + "\n")
+        print(json.dumps(error_event))
 
 
 parser = argparse.ArgumentParser(description="Packet Capture & Parser for IDS")
@@ -59,7 +63,17 @@ if args.output:
     sys.stdout = open(args.output, "a", encoding="utf-8", buffering=1)
 
 if args.pcap:
-    packets = rdpcap(args.pcap)
+    try:
+        packets = rdpcap(args.pcap)
+    except Exception as e:
+        pc += 1
+        error_event = {
+            "packet_id": pc,
+            "error": "malformed_packet",
+            "details": str(e)
+        }
+        print(json.dumps(error_event))
+        packets = []
     for pkt in packets:
         process_packet(pkt)
 elif args.interface:

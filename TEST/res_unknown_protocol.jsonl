@@ -1,0 +1,1 @@
+{"packet_id": 1, "timestamp": 1700000000.0, "network": {"src_ip": "10.0.0.1", "dst_ip": "10.0.0.2", "version": 4, "ttl": 64, "proto": 99}, "transport": null, "application_protocol": "UNKNOWN", "application": null}
