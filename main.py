@@ -1,14 +1,17 @@
+import argparse
 import json
+import sys
 from datetime import datetime
 from scapy.all import rdpcap, sniff
 from parsers.network import parse_network
 from parsers.transport import parse_transport
 from parsers.application import parse_application
-import argparse
-import sys
-
+from modules.decoder import decode_payload
+from modules.preprocessor import preprocess_event
+from modules.flow_tracker import FlowTracker
 
 pc = 0
+tracker = FlowTracker(tcp_idle_timeout=30.0, udp_idle_timeout=15.0)
 
 def process_packet(packet):
     global pc
@@ -16,18 +19,15 @@ def process_packet(packet):
 
     try:
         ts = float(packet.time) if hasattr(packet, "time") else datetime.now().timestamp()
-        wl = getattr(packet, "wirelen", None)
-        if wl is not None and wl > len(packet):
-            raise ValueError(f"Captured {len(packet)} of {wl} bytes")
-
         net_info = parse_network(packet)
 
         if not net_info:
-            raise ValueError("Packet does not contain an IPv4 header")
+            return
 
         trans_info = parse_transport(packet)
         app_proto, app_info = parse_application(packet)
 
+        # 1. Base Event từ BT1
         event = {
             "packet_id": pc,
             "timestamp": ts,
@@ -37,8 +37,16 @@ def process_packet(packet):
             "application": app_info
         }
 
-        line = json.dumps(event)
-        print(line)
+        # 2. Pipeline BT2: Decoder -> Preprocessor -> Flow Tracker
+        event = decode_payload(event)
+        event = preprocess_event(event)
+        flow_summary, expired_flows = tracker.update(event)
+
+        # Ghi các flow vừa hết hạn nếu có
+        for exp in expired_flows:
+            print(json.dumps({"event_type": "flow_expired", "flow": exp}), flush=True)
+
+        print(json.dumps(event), flush=True)
 
     except Exception as e:
         error_event = {
@@ -46,35 +54,35 @@ def process_packet(packet):
             "error": "malformed_packet",
             "details": str(e)
         }
-        print(json.dumps(error_event))
+        err_preprocessed = preprocess_event(error_event)
+        print(json.dumps(err_preprocessed), flush=True)
 
-
-parser = argparse.ArgumentParser(description="Packet Capture & Parser for IDS")
+parser = argparse.ArgumentParser(description="IDS Pipeline: Capture, Decoder, Preprocessor & Flow Tracker")
 parser.add_argument("--interface", type=str)
 parser.add_argument("--pcap", type=str)
-parser.add_argument("--output", type=str, default="output.jsonl")
+parser.add_argument("--output", type=str, default=None)
+parser.add_argument("--tcp-timeout", type=float, default=30.0)
+parser.add_argument("--udp-timeout", type=float, default=15.0)
 args = parser.parse_args()
 
 if not args.interface and not args.pcap:
     parser.error("Add --interface or --pcap")
-    exit(0)
 
+tracker.tcp_idle_timeout = args.tcp_timeout
+tracker.udp_idle_timeout = args.udp_timeout
+
+out_file = None
 if args.output:
-    sys.stdout = open(args.output, "a", encoding="utf-8", buffering=1)
+    out_file = open(args.output, "a", encoding="utf-8", buffering=1)
+    sys.stdout = out_file
 
-if args.pcap:
-    try:
+try:
+    if args.pcap:
         packets = rdpcap(args.pcap)
-    except Exception as e:
-        pc += 1
-        error_event = {
-            "packet_id": pc,
-            "error": "malformed_packet",
-            "details": str(e)
-        }
-        print(json.dumps(error_event))
-        packets = []
-    for pkt in packets:
-        process_packet(pkt)
-elif args.interface:
-    sniff(iface=args.interface, prn=process_packet, store=False)
+        for pkt in packets:
+            process_packet(pkt)
+    elif args.interface:
+        sniff(iface=args.interface, prn=process_packet, store=False)
+finally:
+    if out_file:
+        out_file.close()
