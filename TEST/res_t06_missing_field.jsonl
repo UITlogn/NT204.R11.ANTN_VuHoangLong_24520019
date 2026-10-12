@@ -1,0 +1,1 @@
+{"packet_id": 6, "timestamp": 1790140006.0, "network": {"src_ip": "192.168.1.10", "dst_ip": "10.0.0.1", "version": 4, "ttl": 64, "proto": 6}, "transport": null, "application": null, "preprocessed": {"preprocess_status": "valid", "processing_action": "forward", "reason": []}}

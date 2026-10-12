@@ -1,0 +1,1 @@
+{"packet_id": 14, "preprocess_status": "invalid", "processing_action": "drop", "reason": ["malformed_packet"], "raw_event": {"packet_id": 14, "error": "malformed_packet", "details": "Truncated IP header length"}}
