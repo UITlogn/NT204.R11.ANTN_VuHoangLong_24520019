@@ -1,0 +1,8 @@
+{
+  "case": 11,
+  "status": "PASS",
+  "result": {
+    "distance": 1,
+    "within": 8
+  }
+}
