@@ -1,0 +1,10 @@
+{
+  "case": 3,
+  "status": "PASS",
+  "result": {
+    "file": "<memory>",
+    "line": 1,
+    "status": "unsupported",
+    "reason": "unsupported keyword: pcre"
+  }
+}
