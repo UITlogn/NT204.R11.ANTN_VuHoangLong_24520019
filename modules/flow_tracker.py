@@ -45,6 +45,8 @@ class FlowTracker:
                 "application_protocol": event.get("application_protocol", "UNKNOWN"),
                 "endpoint_a": f"{src_ip}:{src_port}",
                 "endpoint_b": f"{dst_ip}:{dst_port}",
+                "initiator": f"{src_ip}:{src_port}",
+                "responder": f"{dst_ip}:{dst_port}",
                 "start_time": ts,
                 "last_seen": ts,
                 "duration": 0.0,

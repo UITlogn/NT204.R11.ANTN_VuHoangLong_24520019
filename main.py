@@ -9,6 +9,8 @@ from parsers.application import parse_application
 from modules.decoder import decode_payload
 from modules.preprocessor import preprocess_event
 from modules.flow_tracker import FlowTracker
+from core.rule_loader import RuleLoader
+from core.core_engine import EvaluationEngine, RuleRepository
 
 pc = 0
 tracker = FlowTracker(tcp_idle_timeout=30.0, udp_idle_timeout=15.0)
@@ -22,6 +24,12 @@ def process_packet(packet):
         net_info = parse_network(packet)
 
         if not net_info:
+            error_event = {
+                "packet_id": pc,
+                "error": "malformed_packet",
+                "details": "missing IPv4 layer"
+            }
+            print(json.dumps(preprocess_event(error_event)), flush=True)
             return
 
         trans_info = parse_transport(packet)
@@ -41,12 +49,15 @@ def process_packet(packet):
         event = decode_payload(event)
         event = preprocess_event(event)
         flow_summary, expired_flows = tracker.update(event)
+        detections = rule_engine.evaluate(event, flow_summary) if rule_engine else []
 
         # Ghi các flow vừa hết hạn nếu có
         for exp in expired_flows:
             print(json.dumps({"event_type": "flow_expired", "flow": exp}), flush=True)
 
         print(json.dumps(event), flush=True)
+        for detection in detections:
+            print(json.dumps(detection), flush=True)
 
     except Exception as e:
         error_event = {
@@ -63,6 +74,8 @@ parser.add_argument("--pcap", type=str)
 parser.add_argument("--output", type=str, default=None)
 parser.add_argument("--tcp-timeout", type=float, default=30.0)
 parser.add_argument("--udp-timeout", type=float, default=15.0)
+parser.add_argument("--rules", nargs="*", default=[])
+parser.add_argument("--disable-sid", type=int, action="append", default=[])
 args = parser.parse_args()
 
 if not args.interface and not args.pcap:
@@ -70,6 +83,13 @@ if not args.interface and not args.pcap:
 
 tracker.tcp_idle_timeout = args.tcp_timeout
 tracker.udp_idle_timeout = args.udp_timeout
+
+rule_engine = None
+if args.rules:
+    report = RuleLoader(disabled_sids=args.disable_sid).load_files(args.rules)
+    rule_engine = EvaluationEngine(RuleRepository(report["rules"]))
+    for issue in report["issues"]:
+        print(json.dumps({"rule_warning": issue}), file=sys.stderr, flush=True)
 
 out_file = None
 if args.output:

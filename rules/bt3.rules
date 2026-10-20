@@ -1,0 +1,4 @@
+# Sample rules for BT3. Add or replace rules here; no signatures are hard-coded in Python.
+alert tcp any any -> any 80 (msg:"HTTP directory traversal"; sid:100001; rev:1; content:"../"; nocase; flow:to_server,established; classtype:web-application-attack; priority:1;)
+alert tcp any any -> any any (msg:"Suspicious cmd.exe"; sid:100002; rev:1; content:"cmd.exe"; nocase; priority:2;)
+alert tcp any any -> any 80 (msg:"HTTP request"; sid:100003; rev:1; content:"GET "; flow:to_server; priority:3;)
