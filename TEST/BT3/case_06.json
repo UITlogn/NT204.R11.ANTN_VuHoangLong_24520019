@@ -1,0 +1,13 @@
+{
+  "case": 6,
+  "status": "PASS",
+  "result": {
+    "tcp_candidates": [
+      7,
+      8
+    ],
+    "udp_candidates": [
+      9
+    ]
+  }
+}
