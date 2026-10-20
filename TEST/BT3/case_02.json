@@ -1,0 +1,10 @@
+{
+  "case": 2,
+  "status": "PASS",
+  "result": {
+    "file": "<memory>",
+    "line": 1,
+    "status": "invalid",
+    "reason": "missing required option: rev"
+  }
+}
