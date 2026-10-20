@@ -1,0 +1,9 @@
+{
+  "case": 4,
+  "status": "PASS",
+  "result": {
+    "protocol": "tcp",
+    "src_ip": "10.0.0.0/24",
+    "src_port": "1000:2000"
+  }
+}
