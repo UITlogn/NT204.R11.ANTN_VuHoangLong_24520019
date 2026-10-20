@@ -60,7 +60,7 @@ def validate_http_response(events):
     application = one_event(events)["application"]
     require(application["type"] == "response", "HTTP response type is wrong")
     require(application["status_code"] == 200, "HTTP status code is not 200")
-    require("Content-Type" in application["headers"], "HTTP response header is missing")
+    require("content-type" in application["headers"], "HTTP response header is missing")
 
 
 def validate_dns_query(events):
@@ -98,7 +98,8 @@ def validate_unknown_protocol(events):
 
 def validate_malformed_packet(events):
     event = one_event(events)
-    require(event["error"] == "malformed_packet", "malformed packet error is missing")
+    require(event["preprocess_status"] == "invalid", "malformed packet was not dropped")
+    require("malformed_packet" in event["reason"], "malformed packet error is missing")
 
 
 TEST_CASES = [
